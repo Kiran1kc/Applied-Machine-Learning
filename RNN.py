@@ -1,4 +1,5 @@
 ### 1. Initialization
+omport numpy as np
 def initialize_rnn_parameters(n_a, n_x, n_y):
     """
     n_a -- dimension of the hidden state
