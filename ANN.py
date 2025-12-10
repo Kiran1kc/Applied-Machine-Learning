@@ -1,138 +1,55 @@
 import numpy as np
 
-### 1. Core Functions (Activation and Loss)
-def sigmoid(Z):
-    A = 1 / (1 + np.exp(-Z))
-    return A, Z
+# Toy dataset: XOR problem
+X = np.array([[0,0],[0,1],[1,0],[1,1]])
+y = np.array([[0],[1],[1],[0]])
 
-def sigmoid_backward(dA, Z):
-    S = 1 / (1 + np.exp(-Z))
-    dZ = dA * S * (1 - S)
-    return dZ
+# Activation functions
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-def relu(Z):
-    A = np.maximum(0, Z)
-    return A, Z
+def sigmoid_derivative(x):
+    return x * (1 - x)
 
-def relu_backward(dA, Z):
-    dZ = np.array(dA, copy=True)
-    dZ[Z <= 0] = 0
-    return dZ
+# Network parameters
+input_size = 2
+hidden_size = 2
+output_size = 1
+lr = 0.1
+epochs = 10000
 
-def compute_cost(A_L, Y):
-    m = Y.shape[1]
-    # Cross-Entropy Loss
-    cost = (-1 / m) * np.sum(Y * np.log(A_L) + (1 - Y) * np.log(1 - A_L))
-    cost = np.squeeze(cost)
-    return cost
+# Initialize weights
+np.random.seed(42)
+W1 = np.random.rand(input_size, hidden_size)
+b1 = np.zeros((1, hidden_size))
+W2 = np.random.rand(hidden_size, output_size)
+b2 = np.zeros((1, output_size))
 
-### 2. Initialization and Layer Ops
-def initialize_parameters(layer_dims):
-    parameters = {}
-    L = len(layer_dims)
-    for l in range(1, L):
-        parameters['W' + str(l)] = np.random.randn(layer_dims[l], layer_dims[l-1]) * 0.01
-        parameters['b' + str(l)] = np.zeros((layer_dims[l], 1))
-    return parameters
-
-def linear_forward(A_prev, W, b):
-    Z = np.dot(W, A_prev) + b
-    cache = (A_prev, W, b)
-    return Z, cache
-
-def linear_activation_forward(A_prev, W, b, activation):
-    Z, linear_cache = linear_forward(A_prev, W, b)
-    if activation == "relu":
-        A, activation_cache = relu(Z)
-    elif activation == "sigmoid":
-        A, activation_cache = sigmoid(Z)
+# Training loop
+for epoch in range(epochs):
+    # Forward pass
+    z1 = np.dot(X, W1) + b1
+    a1 = sigmoid(z1)
+    z2 = np.dot(a1, W2) + b2
+    a2 = sigmoid(z2)
     
-    cache = (linear_cache, activation_cache)
-    return A, cache
-
-### 3. Backpropagation
-def linear_backward(dZ, cache):
-    A_prev, W, b = cache
-    m = A_prev.shape[1]
+    # Loss (MSE)
+    loss = np.mean((y - a2)**2)
     
-    dW = (1 / m) * np.dot(dZ, A_prev.T)
-    db = (1 / m) * np.sum(dZ, axis=1, keepdims=True)
-    dA_prev = np.dot(W.T, dZ)
+    # Backpropagation
+    d_a2 = (a2 - y) * sigmoid_derivative(a2)
+    d_W2 = np.dot(a1.T, d_a2)
+    d_b2 = np.sum(d_a2, axis=0, keepdims=True)
     
-    return dA_prev, dW, db
-
-def linear_activation_backward(dA, cache, activation):
-    linear_cache, activation_cache = cache
+    d_a1 = np.dot(d_a2, W2.T) * sigmoid_derivative(a1)
+    d_W1 = np.dot(X.T, d_a1)
+    d_b1 = np.sum(d_a1, axis=0, keepdims=True)
     
-    if activation == "relu":
-        dZ = relu_backward(dA, activation_cache)
-    elif activation == "sigmoid":
-        dZ = sigmoid_backward(dA, activation_cache)
-    
-    dA_prev, dW, db = linear_backward(dZ, linear_cache)
-    return dA_prev, dW, db
+    # Update weights
+    W2 -= lr * d_W2
+    b2 -= lr * d_b2
+    W1 -= lr * d_W1
+    b1 -= lr * d_b1
 
-def update_parameters(parameters, grads, learning_rate):
-    L = len(parameters) // 2
-    for l in range(1, L + 1):
-        parameters["W" + str(l)] = parameters["W" + str(l)] - learning_rate * grads["dW" + str(l)]
-        parameters["b" + str(l)] = parameters["b" + str(l)] - learning_rate * grads["db" + str(l)]
-    return parameters
-
-### 4. Model (L-Layer implementation)
-def ann_model(X, Y, layer_dims, learning_rate=0.01, num_iterations=1000):
-    parameters = initialize_parameters(layer_dims)
-    costs = []
-    L = len(layer_dims) - 1 # number of layers
-    
-    for i in range(0, num_iterations):
-        # --- Forward Propagation ---
-        A = X
-        caches = []
-        for l in range(1, L): # Hidden Layers (ReLU)
-            A_prev = A
-            A, cache = linear_activation_forward(A_prev, parameters['W' + str(l)], parameters['b' + str(l)], activation = "relu")
-            caches.append(cache)
-        
-        # Output Layer (Sigmoid)
-        AL, cache = linear_activation_forward(A, parameters['W' + str(L)], parameters['b' + str(L)], activation = "sigmoid")
-        caches.append(cache)
-        
-        # --- Compute Cost ---
-        cost = compute_cost(AL, Y)
-        
-        # --- Backward Propagation ---
-        grads = {}
-        # Initializing backpropagation (from Cost)
-        dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
-        
-        # Output Layer (Sigmoid)
-        current_cache = caches[L-1]
-        grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = linear_activation_backward(dAL, current_cache, activation = "sigmoid")
-        
-        # Hidden Layers (ReLU)
-        for l in reversed(range(L-1)):
-            current_cache = caches[l]
-            dA_prev_temp, dW_temp, db_temp = linear_activation_backward(grads["dA" + str(l + 1)], current_cache, activation = "relu")
-            grads["dA" + str(l)] = dA_prev_temp
-            grads["dW" + str(l + 1)] = dW_temp
-            grads["db" + str(l + 1)] = db_temp
-            
-        # --- Update Parameters ---
-        parameters = update_parameters(parameters, grads, learning_rate)
-        
-        if i % 100 == 0:
-            costs.append(cost)
-            # print (f"Cost after iteration {i}: {cost}")
-            
-    return parameters, costs
-
-# Example usage (Dummy Data)
-# X: 2 features, 100 examples. Y: 1 output, 100 examples.
-# Note: X and Y are transposed for the standard ML formulation.
-X_train = np.random.randn(2, 100) 
-Y_train = (np.sum(X_train, axis=0, keepdims=True) > 0).astype(int) 
-
-layer_dimensions = [2, 4, 1] # Input=2, Hidden=4, Output=1
-# final_parameters, costs = ann_model(X_train, Y_train, layer_dimensions, num_iterations=2000)
-# print("Training Complete. Final Cost:", costs[-1])
+print("Predictions after training:")
+print(a2)
