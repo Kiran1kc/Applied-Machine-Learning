@@ -1,84 +1,69 @@
-### 1. Initialization
-omport numpy as np
-def initialize_rnn_parameters(n_a, n_x, n_y):
-    """
-    n_a -- dimension of the hidden state
-    n_x -- dimension of the input X
-    n_y -- dimension of the output Y
-    """
-    parameters = {}
-    parameters['Waa'] = np.random.randn(n_a, n_a) * 0.01
-    parameters['Wax'] = np.random.randn(n_a, n_x) * 0.01
-    parameters['Wya'] = np.random.randn(n_y, n_a) * 0.01
-    parameters['ba'] = np.zeros((n_a, 1))
-    parameters['by'] = np.zeros((n_y, 1))
-    return parameters
+import numpy as np
 
-### 2. RNN Cell Forward (Single Time Step)
-def rnn_cell_forward(xt, a_prev, parameters):
-    """
-    xt -- Input at time step t (n_x, m)
-    a_prev -- Hidden state at time step t-1 (n_a, m)
-    """
-    Waa, Wax, Wya, ba, by = parameters['Waa'], parameters['Wax'], parameters['Wya'], parameters['ba'], parameters['by']
+# Toy dataset: sequence sum modulo 2
+X = np.array([[0,1,0,1],[1,0,1,0],[1,1,0,0]])
+y = np.array([[0],[0],[1]])
 
-    # Hidden State Update (tanh activation)
-    a_next = np.tanh(np.dot(Wax, xt) + np.dot(Waa, a_prev) + ba)
-    
-    # Output Prediction (softmax for classification, or other)
-    yt_pred = np.dot(Wya, a_next) + by
-    
-    cache = (a_next, a_prev, xt, parameters)
-    return a_next, yt_pred, cache
+# RNN parameters
+input_size = 1
+hidden_size = 2
+output_size = 1
+lr = 0.1
+epochs = 5000
 
-### 3. RNN Forward Pass (Unrolled)
-def rnn_forward(x, a0, parameters):
-    """
-    x -- Input data for all time steps (n_x, m, T_x)
-    a0 -- Initial hidden state (n_a, m)
-    """
-    (n_x, m, T_x) = x.shape
-    n_a = parameters['Waa'].shape[0]
-    n_y = parameters['Wya'].shape[0]
-    
-    # Initialize a and y_pred
-    a = np.zeros((n_a, m, T_x))
-    y_pred = np.zeros((n_y, m, T_x))
-    
-    # Initialize a_next (a_prev for the loop)
-    a_next = a0
-    caches = []
-    
-    for t in range(T_x):
-        a_next, yt_pred, cache = rnn_cell_forward(x[:,:,t], a_next, parameters)
-        a[:,:,t] = a_next
-        y_pred[:,:,t] = yt_pred
-        caches.append(cache)
+# Initialize weights
+np.random.seed(42)
+Wx = np.random.rand(input_size, hidden_size)
+Wh = np.random.rand(hidden_size, hidden_size)
+Wy = np.random.rand(hidden_size, output_size)
+bh = np.zeros((1, hidden_size))
+by = np.zeros((1, output_size))
+
+def sigmoid(x):
+    return 1/(1+np.exp(-x))
+
+def sigmoid_derivative(x):
+    return x*(1-x)
+
+# Training
+for epoch in range(epochs):
+    total_loss = 0
+    for xi, yi in zip(X, y):
+        xi = xi.reshape(-1,1)
+        h = np.zeros((xi.shape[0]+1, hidden_size))
         
-    return a, y_pred, caches
+        # Forward pass
+        for t in range(xi.shape[0]):
+            h[t+1] = sigmoid(np.dot(xi[t], Wx) + np.dot(h[t], Wh) + bh)
+        y_pred = sigmoid(np.dot(h[-1], Wy) + by)
+        
+        loss = (y_pred - yi)**2
+        total_loss += loss
+        
+        # Backprop through time (simple, 1 step)
+        d_y = (y_pred - yi) * sigmoid_derivative(y_pred)
+        d_Wy = np.dot(h[-1].reshape(-1,1), d_y.reshape(1,-1))
+        d_by = d_y
+        
+        d_h = np.dot(d_y, Wy.T) * sigmoid_derivative(h[-1])
+        d_Wx = np.dot(xi[-1].reshape(-1,1), d_h.reshape(1,-1))
+        d_Wh = np.dot(h[-2].reshape(-1,1), d_h.reshape(1,-1))
+        d_bh = d_h
+        
+        # Update
+        Wy -= lr * d_Wy
+        by -= lr * d_by
+        Wx -= lr * d_Wx
+        Wh -= lr * d_Wh
+        bh -= lr * d_bh
+    if epoch % 1000 == 0:
+        print(f"Epoch {epoch}, Loss: {total_loss}")
 
-### 4. BPTT (RNN Cell Backward) - Summing Gradients Over Time
-def rnn_cell_backward(da_next, cache):
-    """
-    da_next -- Gradient of cost with respect to a_next (n_a, m)
-    """
-    (a_next, a_prev, xt, parameters) = cache
-    Waa, Wax, Wya, ba, by = parameters['Waa'], parameters['Wax'], parameters['Wya'], parameters['ba'], parameters['by']
-    
-    # Use d(tanh(u))/du = 1 - tanh^2(u)
-    # The '1 - a_next**2' is the derivative of tanh(Z) *with respect to Z*
-    dtanh = (1 - a_next**2) * da_next
-    
-    # Gradients of parameters for this time step
-    dWaa = np.dot(dtanh, a_prev.T)
-    dWax = np.dot(dtanh, xt.T)
-    dba = np.sum(dtanh, axis=1, keepdims=True)
-    
-    # Gradients for previous hidden state and input
-    da_prev = np.dot(Waa.T, dtanh)
-    dxt = np.dot(Wax.T, dtanh)
-    
-    gradients = {"dxt": dxt, "da_prev": da_prev, "dWax": dWax, "dWaa": dWaa, "dba": dba}
-    return gradients
-
-# NOTE: The full RNN backward function involves looping over time and summing the gradients (dWaa, dWax, dba) calculated at each step to get the final total gradient. The calculation for dWya and dby is derived from the output loss and uses the chain rule with the Wya/by terms.
+print("Predictions after training:")
+for xi in X:
+    xi = xi.reshape(-1,1)
+    h = np.zeros((xi.shape[0]+1, hidden_size))
+    for t in range(xi.shape[0]):
+        h[t+1] = sigmoid(np.dot(xi[t], Wx) + np.dot(h[t], Wh) + bh)
+    y_pred = sigmoid(np.dot(h[-1], Wy) + by)
+    print(y_pred)
