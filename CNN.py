@@ -1,14 +1,14 @@
-# Convolutional Neural Network from Scratch (CNN - 1D)
+# Convolutional Neural Network from Scratch- 1D Convolution
 
 import numpy as np
 
-# Input signal (1D data)
+# Input
 input_signal = np.array([1, 2, 3, 4, 5])
 
-# Filter / Kernel
+# Filter
 kernel = np.array([1, -1])
 
-# Convolution operation
+# operation
 convolution_result = []
 
 for i in range(len(input_signal) - len(kernel) + 1):
@@ -18,7 +18,7 @@ for i in range(len(input_signal) - len(kernel) + 1):
 
 convolution_result = np.array(convolution_result)
 
-# ReLU activation function
+# Activation function- ReLU
 relu_output = []
 for value in convolution_result:
     if value > 0:

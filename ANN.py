@@ -1,4 +1,4 @@
-# Artificial Neural Network from Scratch (ANN)
+# ANN from Scratch
 import numpy as np
 
 # Toy dataset: XOR problem
@@ -12,7 +12,7 @@ def sigmoid(x):
 def sigmoid_derivative(x):
     return x * (1 - x)
 
-# Network parameters
+# parameters
 input_size = 2
 hidden_size = 2
 output_size = 1
@@ -34,7 +34,7 @@ for epoch in range(epochs):
     z2 = np.dot(a1, W2) + b2
     a2 = sigmoid(z2)
     
-    # Loss (MSE)
+    # Loss
     loss = np.mean((y - a2)**2)
     
     # Backpropagation

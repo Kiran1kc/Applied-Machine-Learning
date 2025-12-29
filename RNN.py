@@ -1,4 +1,4 @@
-# Recurrent Neural Network from Scratch (RNN)
+# RNN
 
 import numpy as np
 
